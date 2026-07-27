@@ -1,0 +1,46 @@
+search:
+  keywords:
+    - java
+    - backend
+    - spring boot
+  location: ""
+  remote_only: false
+  countries:
+    - in
+  max_results_per_source: 30
+  posted_within_days: 5
+  max_pages: 1
+
+resume:
+  path: "./data/resume.pdf"
+  text_fallback_path: "./data/resume.txt"
+
+sources:
+  jsearch:
+    enabled: false  # RapidAPI — enable after free-source testing passes
+    host: "jsearch.p.rapidapi.com"
+    search_path: "search-v2"
+    job_details_path: "job-details"
+    api_key_env: "RAPIDAPI_KEY"
+  remotive:
+    enabled: true   # free public API, no key
+  arbeitnow:
+    enabled: true   # free public API, no key
+
+scoring:
+  must_have_weight: 0.6
+  nice_to_have_weight: 0.3
+  title_weight: 0.1
+  min_score_to_save: 0
+
+database:
+  url_env: "DATABASE_URL"
+
+report:
+  output_dir: "./reports"
+  filename_prefix: "job_matches"
+
+cache:
+  enabled: true
+  dir: "./cache"
+  ttl_hours: 24
