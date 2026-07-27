@@ -1,0 +1,14 @@
+.env
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+cache/
+reports/*.xlsx
+data/resume.pdf
+data/resume.txt
+*.log
+.idea/
+.vscode/
+.env
