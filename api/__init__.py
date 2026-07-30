@@ -1,0 +1,1 @@
+"""SkillMatch Jobs FastAPI application."""
