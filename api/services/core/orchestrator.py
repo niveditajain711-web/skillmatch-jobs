@@ -9,9 +9,19 @@ from urllib.parse import urlparse
 from api.services.core.config import search_query
 from api.services.core.db import init_db, session_scope
 from api.services.core.db import repository as repo
-from api.services.core.fetchers import ArbeitnowFetcher, JSearchFetcher, RemotiveFetcher, ResponseCache
+from api.services.core.fetchers import (
+    ArbeitnowFetcher,
+    CompanyBoardsFetcher,
+    JSearchFetcher,
+    RemotiveFetcher,
+    ResponseCache,
+)
 from api.services.core.fetchers.base import BaseFetcher, format_api_error
 from api.services.core.filters.country import filter_jobs_by_country
+from api.services.core.filters.experience import (
+    experience_filter_from_config,
+    filter_jobs_by_experience,
+)
 from api.services.core.models_dto import Job, ScoredJob
 from api.services.core.parsing.resume import load_resume
 from api.services.core.reporting.excel import write_excel_report
@@ -70,6 +80,8 @@ def _build_fetchers(
         fetchers.append(RemotiveFetcher(config, cache, refresh=refresh))
     if sources.get("arbeitnow", {}).get("enabled"):
         fetchers.append(ArbeitnowFetcher(config, cache, refresh=refresh))
+    if sources.get("company_boards", {}).get("enabled"):
+        fetchers.append(CompanyBoardsFetcher(config, cache, refresh=refresh))
     return fetchers
 
 
@@ -170,6 +182,22 @@ def run_pipeline(
                         "Enable JSearch for India-specific results, or set "
                         "strict_country_filter: false in config.yaml."
                     )
+
+            exp_opts = experience_filter_from_config(config)
+            if (
+                exp_opts["years_of_experience"] is not None
+                or exp_opts["experience_min"] is not None
+                or exp_opts["experience_max"] is not None
+            ):
+                before = len(jobs)
+                jobs = filter_jobs_by_experience(jobs, **exp_opts)
+                print(
+                    f"Jobs after experience filter "
+                    f"(yoe={exp_opts['years_of_experience']}, "
+                    f"min={exp_opts['experience_min']}, "
+                    f"max={exp_opts['experience_max']}): "
+                    f"{len(jobs)} (removed {before - len(jobs)})"
+                )
 
             scored: list[ScoredJob] = score_jobs(
                 jobs, resume.skills, config.get("scoring", {})

@@ -9,12 +9,22 @@ from urllib.parse import urlencode
 import requests
 
 from api.services.core.config import search_query
+from api.services.core.fetchers.apply_links import pick_best_apply_url
 from api.services.core.fetchers.base import BaseFetcher, format_api_error, parse_datetime, truncate
 from api.services.core.models_dto import Job
 
 DEFAULT_HOST = "jsearch.p.rapidapi.com"
 SEARCH_PATH = "search-v2"
 JOB_DETAILS_PATH = "job-details"
+DEFAULT_EXCLUDE_PUBLISHERS = (
+    "BeBee",
+    "Shine",
+    "JobLeads",
+    "Jooble",
+    "Neuvoo",
+    "WhatJobs",
+    "Talent.com",
+)
 
 
 def _jsearch_cfg(config: dict[str, Any]) -> dict[str, Any]:
@@ -59,6 +69,16 @@ def build_search_request(config: dict[str, Any]) -> dict[str, Any]:
         params["country"] = country
     if bool(search_cfg.get("remote_only")):
         params["remote_jobs_only"] = "true"
+
+    exclude = source_cfg.get("exclude_job_publishers")
+    if exclude is None:
+        exclude = list(DEFAULT_EXCLUDE_PUBLISHERS)
+    if isinstance(exclude, str):
+        exclude_list = [p.strip() for p in exclude.split(",") if p.strip()]
+    else:
+        exclude_list = [str(p).strip() for p in (exclude or []) if str(p).strip()]
+    if exclude_list:
+        params["exclude_job_publishers"] = ",".join(exclude_list)
 
     api_key = source_cfg.get("_api_key") or ""
     headers = build_jsearch_headers(host, api_key)
@@ -355,13 +375,17 @@ class JSearchFetcher(BaseFetcher):
             item.get("job_country"),
         ]
         location = ", ".join(p for p in location_parts if p) or (item.get("job_location") or "")
+        apply_url = pick_best_apply_url(
+            item,
+            fallback=(item.get("job_apply_link") or item.get("job_google_link") or "").strip(),
+        )
         return Job(
             source=self.name,
             external_id=job_id,
             title=title,
             company=(item.get("employer_name") or "").strip(),
             location=location,
-            url=(item.get("job_apply_link") or item.get("job_google_link") or "").strip(),
+            url=apply_url,
             description=description,
             posted_at=parse_datetime(
                 item.get("job_posted_at_datetime_utc") or item.get("job_posted_at_timestamp")

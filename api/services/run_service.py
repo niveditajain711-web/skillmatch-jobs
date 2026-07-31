@@ -18,7 +18,9 @@ def merge_config(base: dict[str, Any], overrides: dict[str, Any]) -> dict[str, A
     cfg = copy.deepcopy(base)
     search = overrides.get("search") or {}
     for k, v in search.items():
-        if v is not None:
+        if v is None:
+            cfg.setdefault("search", {}).pop(k, None)
+        else:
             cfg.setdefault("search", {})[k] = v
     sources = overrides.get("sources") or {}
     for name, enabled in sources.items():

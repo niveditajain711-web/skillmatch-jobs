@@ -18,6 +18,7 @@ from api.schemas import (
     JobScoreResponse,
     ResumeResponse,
     RunResponse,
+    SearchSettingsUpdate,
     SettingsResponse,
 )
 from api.services.run_service import is_running, start_run_background
@@ -112,7 +113,8 @@ def create_run(
 
     overrides: dict = {}
     if body.search:
-        overrides["search"] = body.search.model_dump(exclude_none=True)
+        # exclude_unset keeps explicit nulls (e.g. clear years_of_experience for this run)
+        overrides["search"] = body.search.model_dump(exclude_unset=True)
     if body.sources:
         overrides["sources"] = body.sources.model_dump(exclude_none=True)
     if body.scoring:
@@ -251,4 +253,42 @@ def update_scoring(
     with path.open("w", encoding="utf-8") as f:
         yaml.safe_dump(raw, f, default_flow_style=False, sort_keys=False)
     config["scoring"] = raw["scoring"]
+    return get_settings(config)
+
+
+@router.put("/settings/search", response_model=SettingsResponse)
+def update_search_settings(body: SearchSettingsUpdate) -> SettingsResponse:
+    """Persist search filters (experience, country, remote) from the UI."""
+    root = _project_root()
+    path = root / "config.yaml"
+    with path.open(encoding="utf-8") as f:
+        raw = yaml.safe_load(f) or {}
+
+    search = raw.setdefault("search", {})
+    data = body.model_dump(exclude_unset=True)
+
+    for clear_flag, key in (
+        ("clear_years_of_experience", "years_of_experience"),
+        ("clear_experience_min", "experience_min"),
+        ("clear_experience_max", "experience_max"),
+    ):
+        if data.pop(clear_flag, False):
+            search.pop(key, None)
+
+    for key in (
+        "years_of_experience",
+        "experience_min",
+        "experience_max",
+        "keep_unknown_experience",
+        "experience_tolerance",
+        "remote_only",
+        "countries",
+    ):
+        if key in data and data[key] is not None:
+            search[key] = data[key]
+
+    with path.open("w", encoding="utf-8") as f:
+        yaml.safe_dump(raw, f, default_flow_style=False, sort_keys=False)
+
+    config = reload_config()
     return get_settings(config)

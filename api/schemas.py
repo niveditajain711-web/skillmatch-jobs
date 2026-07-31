@@ -21,12 +21,18 @@ class SearchConfigInput(BaseModel):
     max_results_per_source: int | None = None
     posted_within_days: int | None = None
     max_pages: int | None = None
+    years_of_experience: float | None = None
+    experience_min: float | None = None
+    experience_max: float | None = None
+    keep_unknown_experience: bool | None = None
+    experience_tolerance: float | None = None
 
 
 class SourcesInput(BaseModel):
     jsearch: bool | None = None
     remotive: bool | None = None
     arbeitnow: bool | None = None
+    company_boards: bool | None = None
 
 
 class ScoringInput(BaseModel):
@@ -115,3 +121,18 @@ class SettingsResponse(BaseModel):
     sources: dict[str, Any]
     scoring: dict[str, Any]
     cache: dict[str, Any]
+
+
+class SearchSettingsUpdate(BaseModel):
+    """UI-editable search prefs persisted to config.yaml."""
+
+    years_of_experience: float | None = None
+    experience_min: float | None = None
+    experience_max: float | None = None
+    keep_unknown_experience: bool | None = None
+    experience_tolerance: float | None = None
+    remote_only: bool | None = None
+    countries: list[str] | None = None
+    clear_years_of_experience: bool = False
+    clear_experience_min: bool = False
+    clear_experience_max: bool = False
