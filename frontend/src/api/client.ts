@@ -68,11 +68,17 @@ export interface CreateRunBody {
     max_results_per_source?: number;
     posted_within_days?: number;
     max_pages?: number;
+    years_of_experience?: number | null;
+    experience_min?: number;
+    experience_max?: number | null;
+    keep_unknown_experience?: boolean;
+    experience_tolerance?: number;
   };
   sources?: {
     jsearch?: boolean;
     remotive?: boolean;
     arbeitnow?: boolean;
+    company_boards?: boolean;
   };
   scoring?: {
     must_have_weight?: number;
@@ -95,8 +101,14 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     }),
-  listRunJobs: (runId: number, minScore?: number) => {
-    const q = minScore != null ? `?min_score=${minScore}` : "";
+  listRunJobs: (runId: number, opts?: { minScore?: number; source?: string; limit?: number }) => {
+    const params = new URLSearchParams();
+    if (opts?.minScore != null && opts.minScore > 0) {
+      params.set("min_score", String(opts.minScore));
+    }
+    if (opts?.source) params.set("source", opts.source);
+    if (opts?.limit != null) params.set("limit", String(opts.limit));
+    const q = params.toString() ? `?${params.toString()}` : "";
     return request<JobScore[]>(`/runs/${runId}/jobs${q}`);
   },
   getRunJob: (runId: number, jobId: number) =>
@@ -113,5 +125,28 @@ export const api = {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(scoring),
+    }),
+  updateSearchSettings: (search: {
+    years_of_experience?: number | null;
+    experience_min?: number | null;
+    experience_max?: number | null;
+    keep_unknown_experience?: boolean;
+    experience_tolerance?: number;
+    remote_only?: boolean;
+    countries?: string[];
+    max_pages?: number;
+    posted_within_days?: number;
+    max_results_per_source?: number;
+    jsearch_max_query_variants?: number;
+    cache_ttl_hours?: number;
+    cache_enabled?: boolean;
+    clear_years_of_experience?: boolean;
+    clear_experience_min?: boolean;
+    clear_experience_max?: boolean;
+  }) =>
+    request<Settings>("/settings/search", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(search),
     }),
 };
