@@ -1,46 +1,311 @@
 search:
   keywords:
-    - java
-    - backend
-    - spring boot
-  location: ""
+  - java
+  - backend
+  - spring boot
+  - aws
+  - kafka
+  location: ''
   remote_only: false
   countries:
-    - in
-  max_results_per_source: 30
-  posted_within_days: 5
-  max_pages: 1
-
+  - in
+  strict_country_filter: true
+  keep_remote_worldwide: true
+  keep_unknown_location: true
+  years_of_experience: 4.0
+  keep_unknown_experience: true
+  experience_tolerance: 2.0
+  max_results_per_source: 60
+  posted_within_days: 15
+  max_pages: 4
 resume:
-  path: "./data/resume.pdf"
-  text_fallback_path: "./data/resume.txt"
-
+  path: ./data/resume.pdf
+  text_fallback_path: ./data/resume.txt
 sources:
   jsearch:
-    enabled: false  # RapidAPI — enable after free-source testing passes
-    host: "jsearch.p.rapidapi.com"
-    search_path: "search-v2"
-    job_details_path: "job-details"
-    api_key_env: "RAPIDAPI_KEY"
+    enabled: true
+    host: jsearch.p.rapidapi.com
+    search_path: search-v2
+    job_details_path: job-details
+    api_key_env: RAPIDAPI_KEY
+    max_query_variants: 1
+    exclude_job_publishers:
+    - BeBee
+    - Shine
+    - JobLeads
+    - Jooble
+    - Neuvoo
+    - WhatJobs
+    - Talent.com
   remotive:
-    enabled: true   # free public API, no key
+    enabled: true
   arbeitnow:
-    enabled: true   # free public API, no key
-
+    enabled: true
+  company_boards:
+    enabled: true
+    keyword_filter: true
+    include_descriptions: true
+    keyword_match_field: description
+    max_results: 200
+    parallel_workers: 12
+    companies:
+    - name: Stripe
+      board: greenhouse
+      token: stripe
+    - name: Affirm
+      board: greenhouse
+      token: affirm
+    - name: Brex
+      board: greenhouse
+      token: brex
+    - name: Ramp
+      board: ashby
+      token: ramp
+    - name: Plaid
+      board: ashby
+      token: plaid
+    - name: Chime
+      board: greenhouse
+      token: chime
+    - name: Robinhood
+      board: greenhouse
+      token: robinhood
+    - name: Coinbase
+      board: greenhouse
+      token: coinbase
+    - name: Block
+      board: greenhouse
+      token: block
+    - name: Modern Treasury
+      board: ashby
+      token: moderntreasury
+    - name: Mercury
+      board: greenhouse
+      token: mercury
+    - name: Nubank
+      board: ashby
+      token: nubank
+    - name: PhonePe
+      board: greenhouse
+      token: phonepe
+    - name: Paytm
+      board: lever
+      token: paytm
+    - name: CRED
+      board: lever
+      token: cred
+    - name: Cloudflare
+      board: greenhouse
+      token: cloudflare
+    - name: Datadog
+      board: greenhouse
+      token: datadog
+    - name: MongoDB
+      board: greenhouse
+      token: mongodb
+    - name: Elastic
+      board: greenhouse
+      token: elastic
+    - name: Databricks
+      board: greenhouse
+      token: databricks
+    - name: Snowflake
+      board: ashby
+      token: snowflake
+    - name: Confluent
+      board: ashby
+      token: confluent
+    - name: Cockroach Labs
+      board: greenhouse
+      token: cockroachlabs
+    - name: PlanetScale
+      board: greenhouse
+      token: planetscale
+    - name: Fastly
+      board: greenhouse
+      token: fastly
+    - name: Twilio
+      board: greenhouse
+      token: twilio
+    - name: Okta
+      board: greenhouse
+      token: okta
+    - name: GitLab
+      board: greenhouse
+      token: gitlab
+    - name: Postman
+      board: greenhouse
+      token: postman
+    - name: Sentry
+      board: ashby
+      token: sentry
+    - name: PagerDuty
+      board: greenhouse
+      token: pagerduty
+    - name: New Relic
+      board: greenhouse
+      token: newrelic
+    - name: Sumo Logic
+      board: greenhouse
+      token: sumologic
+    - name: Supabase
+      board: ashby
+      token: supabase
+    - name: PostHog
+      board: ashby
+      token: posthog
+    - name: Vercel
+      board: greenhouse
+      token: vercel
+    - name: Replit
+      board: ashby
+      token: replit
+    - name: Druva
+      board: greenhouse
+      token: druva
+    - name: OpenAI
+      board: ashby
+      token: openai
+    - name: Anthropic
+      board: greenhouse
+      token: anthropic
+    - name: Perplexity
+      board: ashby
+      token: perplexity
+    - name: Cursor
+      board: ashby
+      token: cursor
+    - name: Scale AI
+      board: greenhouse
+      token: scaleai
+    - name: ElevenLabs
+      board: ashby
+      token: elevenlabs
+    - name: Notion
+      board: ashby
+      token: notion
+    - name: Figma
+      board: greenhouse
+      token: figma
+    - name: Linear
+      board: ashby
+      token: linear
+    - name: Asana
+      board: greenhouse
+      token: asana
+    - name: Miro
+      board: ashby
+      token: miro
+    - name: Airtable
+      board: greenhouse
+      token: airtable
+    - name: Webflow
+      board: greenhouse
+      token: webflow
+    - name: Dropbox
+      board: greenhouse
+      token: dropbox
+    - name: Calendly
+      board: greenhouse
+      token: calendly
+    - name: Intercom
+      board: greenhouse
+      token: intercom
+    - name: Amplitude
+      board: greenhouse
+      token: amplitude
+    - name: Mixpanel
+      board: greenhouse
+      token: mixpanel
+    - name: Contentful
+      board: greenhouse
+      token: contentful
+    - name: Algolia
+      board: greenhouse
+      token: algolia
+    - name: Gusto
+      board: greenhouse
+      token: gusto
+    - name: Airbnb
+      board: greenhouse
+      token: airbnb
+    - name: Lyft
+      board: greenhouse
+      token: lyft
+    - name: Instacart
+      board: greenhouse
+      token: instacart
+    - name: Pinterest
+      board: greenhouse
+      token: pinterest
+    - name: Reddit
+      board: greenhouse
+      token: reddit
+    - name: Discord
+      board: greenhouse
+      token: discord
+    - name: Twitch
+      board: greenhouse
+      token: twitch
+    - name: Spotify
+      board: lever
+      token: spotify
+    - name: Roblox
+      board: greenhouse
+      token: roblox
+    - name: Epic Games
+      board: greenhouse
+      token: epicgames
+    - name: Riot Games
+      board: greenhouse
+      token: riotgames
+    - name: Meesho
+      board: lever
+      token: meesho
+    - name: Peloton
+      board: greenhouse
+      token: peloton
+    - name: 1Password
+      board: ashby
+      token: 1password
+    - name: Bitwarden
+      board: greenhouse
+      token: bitwarden
+    - name: LastPass
+      board: greenhouse
+      token: lastpass
+    - name: Palantir
+      board: lever
+      token: palantir
+    - name: Duolingo
+      board: greenhouse
+      token: duolingo
+    - name: Coursera
+      board: greenhouse
+      token: coursera
+    - name: Udemy
+      board: greenhouse
+      token: udemy
+    - name: Udacity
+      board: greenhouse
+      token: udacity
+    - name: Khan Academy
+      board: greenhouse
+      token: khanacademy
+    - name: Calm
+      board: greenhouse
+      token: calm
 scoring:
   must_have_weight: 0.6
   nice_to_have_weight: 0.3
   title_weight: 0.1
   min_score_to_save: 0
-
 database:
-  url_env: "DATABASE_URL"
-
+  url_env: DATABASE_URL
 report:
-  output_dir: "./reports"
-  filename_prefix: "job_matches"
-
+  output_dir: ./reports
+  filename_prefix: job_matches
 cache:
   enabled: true
-  dir: "./cache"
-  ttl_hours: 24
+  dir: ./cache
+  ttl_hours: 6
