@@ -26,6 +26,9 @@ class SearchConfigInput(BaseModel):
     experience_max: float | None = None
     keep_unknown_experience: bool | None = None
     experience_tolerance: float | None = None
+    keep_remote_worldwide: bool | None = None
+    keep_unknown_location: bool | None = None
+    strict_country_filter: bool | None = None
 
 
 class SourcesInput(BaseModel):
@@ -133,6 +136,12 @@ class SearchSettingsUpdate(BaseModel):
     experience_tolerance: float | None = None
     remote_only: bool | None = None
     countries: list[str] | None = None
+    max_pages: int | None = None
+    posted_within_days: int | None = None
+    max_results_per_source: int | None = None
+    jsearch_max_query_variants: int | None = None
+    cache_ttl_hours: int | None = None
+    cache_enabled: bool | None = None
     clear_years_of_experience: bool = False
     clear_experience_min: bool = False
     clear_experience_max: bool = False

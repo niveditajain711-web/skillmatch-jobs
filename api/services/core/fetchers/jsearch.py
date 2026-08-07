@@ -51,18 +51,48 @@ def build_jsearch_headers(host: str, api_key: str) -> dict[str, str]:
     }
 
 
-def build_search_request(config: dict[str, Any]) -> dict[str, Any]:
-    """Build the search-v2 request our pipeline uses (no HTTP call)."""
+def build_query_variants(config: dict[str, Any]) -> list[str]:
+    """
+    Build complementary JSearch queries.
+
+    One mega-query like "java backend spring boot aws kafka" often returns
+    almost nothing; several shorter queries cover more of Google for Jobs.
+    """
+    search_cfg = config.get("search", {})
+    keywords = [str(k).strip() for k in (search_cfg.get("keywords") or []) if str(k).strip()]
+    location = (search_cfg.get("location") or "").strip()
+    variants_cfg = _jsearch_cfg(config).get("query_variants")
+
+    if isinstance(variants_cfg, list) and variants_cfg:
+        queries = [str(q).strip() for q in variants_cfg if str(q).strip()]
+    elif len(keywords) <= 2:
+        queries = [" ".join(keywords)] if keywords else [search_query(config)]
+    else:
+        # Primary role query + tech-pair variants (skip stuffing every keyword)
+        primary = " ".join(keywords[:3])
+        queries = [primary]
+        head = keywords[0]
+        for kw in keywords[1:]:
+            pair = f"{head} {kw}"
+            if pair not in queries:
+                queries.append(pair)
+        # Cap free-tier API usage
+        max_variants = int(_jsearch_cfg(config).get("max_query_variants") or 3)
+        queries = queries[: max(1, max_variants)]
+
+    if location:
+        queries = [f"{q} {location}".strip() for q in queries]
+    return queries or [search_query(config)]
+
+
+def _base_search_params(config: dict[str, Any]) -> dict[str, Any]:
     source_cfg = _jsearch_cfg(config)
     search_cfg = config.get("search", {})
-    host = source_cfg.get("host", DEFAULT_HOST)
-    search_path = source_cfg.get("search_path", SEARCH_PATH).strip("/")
     countries = search_cfg.get("countries") or []
     country = countries[0] if countries else None
 
     params: dict[str, Any] = {
-        "query": search_query(config),
-        "num_pages": int(search_cfg.get("max_pages", 1)),
+        "num_pages": int(search_cfg.get("max_pages", 2)),
         "date_posted": _date_posted_value(search_cfg.get("posted_within_days")),
     }
     if country:
@@ -79,10 +109,21 @@ def build_search_request(config: dict[str, Any]) -> dict[str, Any]:
         exclude_list = [str(p).strip() for p in (exclude or []) if str(p).strip()]
     if exclude_list:
         params["exclude_job_publishers"] = ",".join(exclude_list)
+    return params
+
+
+def build_search_request(config: dict[str, Any], query: str | None = None) -> dict[str, Any]:
+    """Build the search-v2 request our pipeline uses (no HTTP call)."""
+    source_cfg = _jsearch_cfg(config)
+    host = source_cfg.get("host", DEFAULT_HOST)
+    search_path = source_cfg.get("search_path", SEARCH_PATH).strip("/")
+    params = _base_search_params(config)
+    params["query"] = query or build_query_variants(config)[0]
 
     api_key = source_cfg.get("_api_key") or ""
     headers = build_jsearch_headers(host, api_key)
     url = f"https://{host}/{search_path}?{urlencode(params)}"
+    variants = build_query_variants(config)
 
     return {
         "purpose": "job search (used by this CLI)",
@@ -91,7 +132,8 @@ def build_search_request(config: dict[str, Any]) -> dict[str, Any]:
         "url": url,
         "headers": headers,
         "params": params,
-        "api_calls_per_run": 1,
+        "query_variants": variants,
+        "api_calls_per_run": len(variants),
     }
 
 
@@ -303,17 +345,18 @@ class JSearchFetcher(BaseFetcher):
             return []
 
         search_cfg = self.config.get("search", {})
-        max_results = int(search_cfg.get("max_results_per_source", 30))
-        req = build_search_request(self.config)
+        max_results = int(search_cfg.get("max_results_per_source", 50))
         host = source_cfg.get("host", DEFAULT_HOST)
         search_path = source_cfg.get("search_path", SEARCH_PATH).strip("/")
         headers = build_jsearch_headers(host, api_key)
-        params = req["params"]
+        queries = build_query_variants(self.config)
+        base_params = _base_search_params(self.config)
 
         jobs: list[Job] = []
+        seen_ids: set[str] = set()
         combined_raw: list[dict[str, Any]] = []
 
-        def _do_fetch(p=params):
+        def _do_fetch(p: dict[str, Any]):
             url = f"https://{host}/{search_path}"
             resp = requests.get(url, headers=headers, params=p, timeout=45)
             try:
@@ -331,20 +374,39 @@ class JSearchFetcher(BaseFetcher):
                 ) from exc
             return resp.json()
 
-        body = self._load_or_fetch_json(params, _do_fetch)
-        if isinstance(body, dict):
-            combined_raw.append(body)
-            data = extract_search_jobs(body.get("data"))
-        else:
-            data = []
+        for query in queries:
+            params = {**base_params, "query": query}
+            try:
+                body = self._load_or_fetch_json(params, lambda p=params: _do_fetch(p))
+            except Exception as exc:  # noqa: BLE001
+                print(f"[jsearch] query={query!r} error: {format_api_error(exc)}")
+                continue
 
-        for item in data:
-            job = self._to_job(item)
-            if job:
+            if isinstance(body, dict):
+                combined_raw.append({"query": query, "body": body})
+                data = extract_search_jobs(body.get("data"))
+            else:
+                data = []
+
+            added = 0
+            for item in data:
+                job = self._to_job(item)
+                if not job or job.external_id in seen_ids:
+                    continue
+                seen_ids.add(job.external_id)
                 jobs.append(job)
+                added += 1
+                if len(jobs) >= max_results:
+                    break
+            print(f"[jsearch] query={query!r} +{added} (total {len(jobs)})")
             if len(jobs) >= max_results:
                 break
 
+        self.last_request_params = {
+            "queries": queries,
+            "base": base_params,
+            "max_results": max_results,
+        }
         self.last_raw_body = {"pages": combined_raw} if combined_raw else self.last_raw_body
         return jobs[:max_results]
 

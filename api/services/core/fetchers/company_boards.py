@@ -22,12 +22,53 @@ def _keywords(config: dict[str, Any]) -> list[str]:
     return [str(k).lower().strip() for k in (config.get("search", {}).get("keywords") or []) if str(k).strip()]
 
 
-def _matches_keywords(title: str, description: str, keywords: list[str]) -> bool:
+def _matches_keywords(
+    title: str,
+    description: str,
+    keywords: list[str],
+    *,
+    match_field: str = "description",
+) -> bool:
+    """
+    Match company-board jobs to search keywords.
+
+    match_field=description (default): keywords must appear in job description.
+    Falls back to title only when description was not loaded.
+    match_field=title: title-only (legacy).
+    match_field=both: title or description.
+    """
     if not keywords:
         return True
-    blob = f"{title}\n{description}".lower()
-    # Prefer title hits; description helps when include_descriptions is enabled.
-    return any(k in blob for k in keywords)
+
+    title_l = (title or "").lower()
+    desc_l = (description or "").lower()
+    field = (match_field or "description").lower()
+
+    if field == "title":
+        return any(k in title_l for k in keywords)
+
+    if field == "both":
+        blob = f"{title_l}\n{desc_l}"
+        return any(k in blob for k in keywords)
+
+    # description-first (default)
+    if desc_l.strip():
+        return any(k in desc_l for k in keywords)
+
+    # Description not loaded — only keep if keyword appears in title (no generic title fallback)
+    return any(k in title_l for k in keywords)
+
+
+def _within_posted_days(job: Job, days: int | None) -> bool:
+    if not days or days <= 0 or job.posted_at is None:
+        return True
+    from datetime import datetime, timezone
+
+    posted = job.posted_at
+    if posted.tzinfo is None:
+        posted = posted.replace(tzinfo=timezone.utc)
+    age = datetime.now(timezone.utc) - posted
+    return age.days <= int(days)
 
 
 def _company_entries(config: dict[str, Any]) -> list[dict[str, Any]]:
@@ -64,6 +105,11 @@ class CompanyBoardsFetcher(BaseFetcher):
         keywords = _keywords(self.config)
         remote_only = bool(search_cfg.get("remote_only"))
         filter_keywords = bool(board_cfg.get("keyword_filter", True))
+        match_field = str(board_cfg.get("keyword_match_field") or "description")
+        # Always load descriptions when keyword filter is on (needed for description match)
+        include_descriptions = bool(
+            board_cfg.get("include_descriptions", filter_keywords)
+        )
         workers = int(board_cfg.get("parallel_workers") or 12)
 
         all_jobs: list[Job] = []
@@ -74,7 +120,9 @@ class CompanyBoardsFetcher(BaseFetcher):
             token = str(entry.get("token", "")).strip()
             company_name = str(entry.get("name") or token).strip()
             try:
-                jobs, _raw = self._fetch_board(board, token, company_name, entry)
+                jobs, _raw = self._fetch_board(
+                    board, token, company_name, entry, include_descriptions=include_descriptions
+                )
                 return company_name, board, token, jobs, None
             except Exception as exc:  # noqa: BLE001
                 return company_name, board, token, [], str(exc)
@@ -106,21 +154,31 @@ class CompanyBoardsFetcher(BaseFetcher):
                 )
                 for job in jobs:
                     if filter_keywords and not _matches_keywords(
-                        job.title, job.description, keywords
+                        job.title, job.description, keywords, match_field=match_field
                     ):
                         continue
                     if remote_only and job.is_remote is False:
                         continue
+                    posted_within = search_cfg.get("posted_within_days")
+                    if not _within_posted_days(job, posted_within):
+                        continue
                     all_jobs.append(job)
 
-        # Prefer title keyword matches first, then keep max_results
+        # Prefer description keyword hits when sorting
         if filter_keywords and keywords:
-            title_hits = [
-                j for j in all_jobs if any(k in j.title.lower() for k in keywords)
-            ]
-            title_ids = {id(j) for j in title_hits}
-            rest = [j for j in all_jobs if id(j) not in title_ids]
-            all_jobs = title_hits + rest
+            if match_field == "description":
+                desc_hits = [
+                    j
+                    for j in all_jobs
+                    if j.description and any(k in j.description.lower() for k in keywords)
+                ]
+            else:
+                desc_hits = [
+                    j for j in all_jobs if any(k in j.title.lower() for k in keywords)
+                ]
+            hit_ids = {id(j) for j in desc_hits}
+            rest = [j for j in all_jobs if id(j) not in hit_ids]
+            all_jobs = desc_hits + rest
 
         params = {
             "boards": [f"{e.get('board')}:{e.get('token')}" for e in entries],
@@ -146,9 +204,11 @@ class CompanyBoardsFetcher(BaseFetcher):
         token: str,
         company_name: str,
         entry: dict[str, Any],
+        *,
+        include_descriptions: bool = True,
     ) -> tuple[list[Job], Any]:
         if board == "greenhouse":
-            return self._fetch_greenhouse(token, company_name)
+            return self._fetch_greenhouse(token, company_name, include_descriptions=include_descriptions)
         if board == "lever":
             return self._fetch_lever(token, company_name)
         if board == "ashby":
@@ -160,15 +220,11 @@ class CompanyBoardsFetcher(BaseFetcher):
     def _headers(self) -> dict[str, str]:
         return {"User-Agent": USER_AGENT, "Accept": "application/json"}
 
-    def _fetch_greenhouse(self, token: str, company_name: str) -> tuple[list[Job], Any]:
-        # Skip HTML content by default — much faster for large curated lists.
-        include_content = bool(
-            self.config.get("sources", {})
-            .get("company_boards", {})
-            .get("include_descriptions", False)
-        )
+    def _fetch_greenhouse(
+        self, token: str, company_name: str, *, include_descriptions: bool = True
+    ) -> tuple[list[Job], Any]:
         url = f"https://boards-api.greenhouse.io/v1/boards/{token}/jobs"
-        params = {"content": "true"} if include_content else {}
+        params = {"content": "true"} if include_descriptions else {}
         resp = requests.get(url, params=params, headers=self._headers(), timeout=45)
         resp.raise_for_status()
         body = resp.json()
@@ -184,7 +240,7 @@ class CompanyBoardsFetcher(BaseFetcher):
             if isinstance(item.get("location"), dict):
                 loc = (item["location"].get("name") or "").strip()
             absolute = (item.get("absolute_url") or "").strip()
-            desc = _strip_html(item.get("content") or "") if include_content else ""
+            desc = _strip_html(item.get("content") or "") if include_descriptions else ""
             jobs.append(
                 Job(
                     source=self.name,

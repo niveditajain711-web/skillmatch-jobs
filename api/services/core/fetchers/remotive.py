@@ -18,13 +18,15 @@ class RemotiveFetcher(BaseFetcher):
     def fetch(self) -> list[Job]:
         search_cfg = self.config.get("search", {})
         keywords = search_cfg.get("keywords") or []
-        search = " ".join(str(k) for k in keywords).strip()
-        max_results = int(search_cfg.get("max_results_per_source", 30))
+        # Remotive search is fragile with long keyword strings — use top skills only.
+        primary = [str(k).strip() for k in keywords[:2] if str(k).strip()]
+        search = " ".join(primary).strip()
+        max_results = int(search_cfg.get("max_results_per_source", 50))
 
         params: dict[str, Any] = {}
         if search:
             params["search"] = search
-        params["limit"] = max_results
+        params["limit"] = max(max_results, 50)
 
         def _do_fetch():
             resp = requests.get(REMOTIVE_URL, params=params, timeout=45)
@@ -34,11 +36,17 @@ class RemotiveFetcher(BaseFetcher):
         body = self._load_or_fetch_json(params, _do_fetch)
         jobs_data = body.get("jobs", []) if isinstance(body, dict) else []
 
+        tokens = [str(k).lower().strip() for k in keywords if str(k).strip()]
         jobs: list[Job] = []
         for item in jobs_data:
             job = self._to_job(item)
-            if job:
-                jobs.append(job)
+            if not job:
+                continue
+            if tokens:
+                blob = f"{job.title}\n{job.description}".lower()
+                if not any(tok in blob for tok in tokens):
+                    continue
+            jobs.append(job)
             if len(jobs) >= max_results:
                 break
         return jobs

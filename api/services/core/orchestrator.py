@@ -168,19 +168,26 @@ def run_pipeline(
             strict_country = search_cfg.get("strict_country_filter", True)
             if countries and strict_country:
                 before = len(jobs)
+                keep_remote = bool(search_cfg.get("keep_remote_worldwide", True))
+                keep_unknown = bool(search_cfg.get("keep_unknown_location", True))
                 jobs = filter_jobs_by_country(
-                    jobs, countries, skip_sources={"jsearch"}
+                    jobs,
+                    countries,
+                    skip_sources={"jsearch"},
+                    keep_remote_worldwide=keep_remote,
+                    keep_unknown_location=keep_unknown,
                 )
                 removed = before - len(jobs)
                 print(
-                    f"Jobs after country filter ({', '.join(countries)}): "
+                    f"Jobs after country filter ({', '.join(countries)}, "
+                    f"remote={keep_remote}, unknown={keep_unknown}): "
                     f"{len(jobs)} (removed {removed})"
                 )
                 if before > 0 and len(jobs) == 0:
                     print(
                         "Warning: country filter removed all jobs. "
                         "Enable JSearch for India-specific results, or set "
-                        "strict_country_filter: false in config.yaml."
+                        "strict_country_filter: false / keep_remote_worldwide: true."
                     )
 
             exp_opts = experience_filter_from_config(config)

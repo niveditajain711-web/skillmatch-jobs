@@ -229,8 +229,12 @@ async def upload_resume(
 
 @router.get("/settings", response_model=SettingsResponse)
 def get_settings(config: dict = Depends(get_config)) -> SettingsResponse:
+    search = dict(config.get("search", {}))
+    jsearch = config.get("sources", {}).get("jsearch", {})
+    if jsearch.get("max_query_variants") is not None:
+        search["jsearch_max_query_variants"] = jsearch.get("max_query_variants")
     return SettingsResponse(
-        search=config.get("search", {}),
+        search=search,
         sources={
             k: {"enabled": v.get("enabled", False)}
             for k, v in config.get("sources", {}).items()
@@ -267,6 +271,10 @@ def update_search_settings(body: SearchSettingsUpdate) -> SettingsResponse:
     search = raw.setdefault("search", {})
     data = body.model_dump(exclude_unset=True)
 
+    jsearch_variants = data.pop("jsearch_max_query_variants", None)
+    cache_ttl = data.pop("cache_ttl_hours", None)
+    cache_enabled = data.pop("cache_enabled", None)
+
     for clear_flag, key in (
         ("clear_years_of_experience", "years_of_experience"),
         ("clear_experience_min", "experience_min"),
@@ -283,9 +291,24 @@ def update_search_settings(body: SearchSettingsUpdate) -> SettingsResponse:
         "experience_tolerance",
         "remote_only",
         "countries",
+        "max_pages",
+        "posted_within_days",
+        "max_results_per_source",
     ):
         if key in data and data[key] is not None:
             search[key] = data[key]
+
+    if jsearch_variants is not None:
+        raw.setdefault("sources", {}).setdefault("jsearch", {})[
+            "max_query_variants"
+        ] = int(jsearch_variants)
+
+    if cache_ttl is not None or cache_enabled is not None:
+        cache = raw.setdefault("cache", {})
+        if cache_ttl is not None:
+            cache["ttl_hours"] = int(cache_ttl)
+        if cache_enabled is not None:
+            cache["enabled"] = bool(cache_enabled)
 
     with path.open("w", encoding="utf-8") as f:
         yaml.safe_dump(raw, f, default_flow_style=False, sort_keys=False)

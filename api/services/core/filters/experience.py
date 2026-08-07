@@ -76,16 +76,19 @@ def extract_experience_range(text: str) -> tuple[float | None, float | None]:
             if years <= 40:
                 return float(years), None
 
-    # Seniority hints when no numeric YOE is present
+    # Seniority hints when no numeric YOE is present — keep bands wide enough
+    # that a mid-level candidate (e.g. 5 YOE) is not wiped by Staff labels alone.
     lower = text.lower()
     if re.search(r"\b(intern|internship|entry[\s-]?level|junior|graduate|fresher)\b", lower):
         return 0.0, 2.0
-    if re.search(r"\b(principal|staff|distinguished|fellow)\b", lower):
+    if re.search(r"\b(principal|distinguished|fellow)\b", lower):
         return 8.0, None
+    if re.search(r"\bstaff\b", lower):
+        return 6.0, None
     if re.search(r"\b(senior|sr\.?)\b", lower):
-        return 5.0, None
+        return 4.0, None
     if re.search(r"\b(mid[\s-]?level|intermediate)\b", lower):
-        return 3.0, 6.0
+        return 3.0, 7.0
 
     return None, None
 
