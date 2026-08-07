@@ -1,64 +1,109 @@
-# Job Search + Resume Matcher
+# SkillMatch Jobs
 
-Personal Python CLI that:
+Resume-aware job search with explainable match scores and skill-gap reports.
 
-1. Fetches jobs from free sources (JSearch/RapidAPI, Remotive, Arbeitnow)
-2. Scores your resume against each job (keyword match + gaps)
-3. Saves results to **PostgreSQL**
-4. Writes an **Excel** report (`Summary`, `Matches`, `Gaps`)
+Fetches jobs from configurable APIs, scores them against your resume, stores history in **PostgreSQL**, and exports **Excel** reports. Includes a **CLI** and a **web UI** (FastAPI + React).
+
+## Stack
+
+| Layer | Tech |
+|-------|------|
+| Core | Python — fetchers, parsing, scoring, orchestrator |
+| CLI | Click (`python -m api.services.core.main`) |
+| API | FastAPI + Uvicorn |
+| UI | React + Vite + TypeScript + Tailwind + TanStack Query |
+| DB | PostgreSQL |
+| Job sources | JSearch, Remotive, Arbeitnow, curated company ATS boards |
 
 ## Setup
 
 ```bash
 python -m venv .venv
-
-# Windows PowerShell
-.\.venv\Scripts\Activate.ps1
-
+.\.venv\Scripts\Activate.ps1   # Windows
 pip install -r requirements.txt
 copy .env.example .env
 ```
 
-### PostgreSQL (use your existing local instance)
-
-This project does **not** start a Postgres container. Point `.env` at your local database:
+Point `.env` at your Postgres:
 
 ```env
 DATABASE_URL=postgresql://postgres:admin@localhost:5432/jobsearch
 ```
 
-Create the database once if needed:
+Create DB if needed: `CREATE DATABASE jobsearch;`
 
-```sql
-CREATE DATABASE jobsearch;
+Put resume at `data/resume.pdf` or `data/resume.txt`. Tune `config.yaml`.
+
+### Frontend
+
+```bash
+cd frontend
+npm install
 ```
-
-Tables are created automatically on first run.
-
-Optional: `RAPIDAPI_KEY` in `.env` when `sources.jsearch.enabled: true` in `config.yaml`.
-
-Put your resume at `data/resume.pdf` (preferred) or edit `data/resume.txt` (fallback).
-
-Tune search settings in `config.yaml`.
 
 ## Run
 
-From the project root:
+### Web UI (recommended)
+
+Terminal 1 — API:
 
 ```bash
-python -m src.main
-python -m src.main --refresh          # ignore cache, hit APIs
-python -m src.main --rescore-only     # no API calls; rescore DB jobs
+python -m uvicorn api.main:app --reload --port 8000
 ```
+
+On Windows, if `uvicorn` is blocked by Application Control, use `python -m uvicorn` (not `uvicorn` directly).
+
+Terminal 2 — UI:
+
+```bash
+cd frontend
+npm run dev
+```
+
+Open http://localhost:5173
+
+### CLI
+
+```bash
+python -m api.services.core.main
+python -m api.services.core.main --refresh
+python -m api.services.core.main --rescore-only
+python -m api.services.core.main --validate-jsearch   # dry-run JSearch config
+```
+
+## UI screens
+
+- **Dashboard** — latest run stats, top matches, skill gaps
+- **New Search** — keywords, sources, run search
+- **Results** — ranked jobs for a run
+- **Job detail** — score breakdown, matched/missing skills, apply link
+- **Resume** — upload PDF/txt, view detected skills
+- **History** — past search runs
+- **Settings** — scoring weights
+
+## API docs
+
+With API running: http://localhost:8000/docs
+
+## Company career boards
+
+Official ATS links (not Shine/BeBee) come from a curated list in `config.yaml` under `sources.company_boards.companies`:
+
+```yaml
+- name: Stripe
+  board: greenhouse   # greenhouse | lever | ashby | workday
+  token: stripe
+```
+
+JSearch also excludes low-quality publishers and prefers ATS/careers apply URLs when multiple options exist.
 
 ## Outputs
 
-- Postgres tables: `search_runs`, `jobs`, `job_scores`, `raw_responses`
+- Postgres: `search_runs`, `jobs`, `job_scores`, `raw_responses`
 - Excel: `reports/job_matches_YYYYMMDD_HHMM.xlsx`
-- File cache: `cache/*.json` (protects free API quotas)
+- Cache: `cache/*.json`
 
-## Notes
+## Roadmap
 
-- Tables are created automatically via SQLAlchemy `create_all` on first run.
-- JSearch is skipped gracefully if `RAPIDAPI_KEY` is missing.
-- Remotive and Arbeitnow work without keys.
+- [ ] Authentication (JWT / user accounts)
+- [ ] Saved jobs & alerts
