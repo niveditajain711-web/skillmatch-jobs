@@ -328,7 +328,74 @@ export function SettingsPage() {
           Company boards match keywords against job descriptions (not titles only).
         </p>
       </section>
+
+      <AgentStatusCard />
     </div>
+  );
+}
+
+function AgentStatusCard() {
+  const qc = useQueryClient();
+  const { data } = useQuery({ queryKey: ["agent-status"], queryFn: api.getAgentStatus });
+  const { data: schedule } = useQuery({
+    queryKey: ["agent-schedule"],
+    queryFn: api.getScheduleStatus,
+  });
+  const runNow = useMutation({
+    mutationFn: api.runScheduleNow,
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["agent-schedule"] });
+      void qc.invalidateQueries({ queryKey: ["apply-queue"] });
+      void qc.invalidateQueries({ queryKey: ["runs"] });
+    },
+  });
+
+  if (!data) return null;
+  return (
+    <section className="rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-600">
+      <h3 className="mb-2 font-semibold text-slate-800">AI apply agent</h3>
+      <ul className="list-inside list-disc">
+        <li>Enabled: {data.enabled ? "yes" : "no"}</li>
+        <li>
+          Provider / model: {data.provider} / {data.model}
+        </li>
+        <li>Human approval required: {data.require_human_approval ? "yes" : "no"}</li>
+        <li>
+          Batch: top {data.max_jobs_per_run} jobs · min keyword score{" "}
+          {data.min_keyword_score}
+        </li>
+        <li>
+          Browser assist: {data.browser_assist_enabled ? "on (never auto-submits)" : "off"}
+        </li>
+        <li>
+          Daily shortlist:{" "}
+          {data.schedule_enabled
+            ? `on · ${data.schedule_daily_at ?? "09:00"}`
+            : "off (enable in config.yaml)"}
+          {schedule?.next_run_at ? ` · next ${schedule.next_run_at}` : ""}
+          {schedule?.status ? ` · ${schedule.status}` : ""}
+        </li>
+      </ul>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <button
+          type="button"
+          disabled={runNow.isPending || schedule?.status?.startsWith("running")}
+          onClick={() => runNow.mutate()}
+          className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs hover:bg-slate-50 disabled:opacity-50"
+        >
+          {runNow.isPending ? "Running shortlist…" : "Run shortlist now"}
+        </button>
+      </div>
+      {runNow.error && (
+        <p className="mt-2 text-xs text-rose-600">{(runNow.error as Error).message}</p>
+      )}
+      <p className="mt-3 text-xs text-slate-500">
+        Install browser assist once: <code>pip install playwright</code> then{" "}
+        <code>playwright install chromium</code>. Apply Queue →{" "}
+        <strong>Browser fill (you submit)</strong>. Set{" "}
+        <code>agent.schedule.enabled: true</code> for daily search + drafts.
+      </p>
+    </section>
   );
 }
 

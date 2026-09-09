@@ -1,6 +1,6 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useParams } from "react-router-dom";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { api, type JobScore } from "../api/client";
 import { ScoreBadge } from "../components/ScoreBadge";
 
@@ -27,6 +27,7 @@ function formatPosted(iso: string | null): string {
 export function ResultsPage() {
   const { runId } = useParams<{ runId: string }>();
   const id = Number(runId);
+  const qc = useQueryClient();
 
   const [minScore, setMinScore] = useState(0);
   const [sourceFilter, setSourceFilter] = useState("");
@@ -49,6 +50,40 @@ export function ResultsPage() {
     enabled: !!id && run?.status === "completed",
     refetchInterval: run?.status === "running" ? 3000 : false,
   });
+
+  const { data: agentStatus } = useQuery({
+    queryKey: ["agent-status"],
+    queryFn: api.getAgentStatus,
+  });
+
+  const { data: batchStatus } = useQuery({
+    queryKey: ["agent-batch", id],
+    queryFn: () => api.getAnalyzeRunStatus(id),
+    enabled: !!id && run?.status === "completed",
+    refetchInterval: (q) => (q.state.data?.status === "running" ? 2000 : false),
+    retry: false,
+  });
+
+  const batchAnalyze = useMutation({
+    mutationFn: () =>
+      api.analyzeRun(id, {
+        maxJobs: agentStatus?.max_jobs_per_run,
+        minScore: Math.max(minScore, agentStatus?.min_keyword_score ?? 0),
+      }),
+    onSuccess: (status) => {
+      qc.setQueryData(["agent-batch", id], status);
+      void qc.invalidateQueries({ queryKey: ["apply-queue"] });
+    },
+  });
+
+  useEffect(() => {
+    if (
+      batchStatus?.status === "completed" ||
+      batchStatus?.status === "completed_with_errors"
+    ) {
+      void qc.invalidateQueries({ queryKey: ["apply-queue"] });
+    }
+  }, [batchStatus?.status, qc]);
 
   const sources = useMemo(() => {
     const set = new Set((jobs ?? []).map((j) => j.source));
@@ -125,7 +160,7 @@ export function ResultsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between">
+      <div className="flex items-start justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold">Results</h2>
           <p className="text-slate-500">
@@ -133,10 +168,63 @@ export function ResultsPage() {
             <span className="capitalize">{run?.status ?? "…"}</span>
           </p>
         </div>
-        {run?.report_path && (
-          <span className="text-xs text-slate-400">Excel: {run.report_path}</span>
-        )}
+        <div className="flex flex-col items-end gap-2">
+          {run?.report_path && (
+            <span className="text-xs text-slate-400">Excel: {run.report_path}</span>
+          )}
+          {run?.status === "completed" && agentStatus?.enabled !== false && (
+            <button
+              type="button"
+              disabled={batchAnalyze.isPending || batchStatus?.status === "running"}
+              onClick={() => batchAnalyze.mutate()}
+              className="rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+            >
+              {batchStatus?.status === "running" || batchAnalyze.isPending
+                ? `Analyzing… ${batchStatus?.analyzed ?? 0}/${batchStatus?.total || "…"}`
+                : `Analyze top ${agentStatus?.max_jobs_per_run ?? 15} with AI`}
+            </button>
+          )}
+          <Link to="/apply-queue" className="text-xs text-indigo-600 hover:underline">
+            Open Apply Queue →
+          </Link>
+        </div>
       </div>
+
+      {((batchStatus && batchStatus.status !== "idle") || batchAnalyze.error) && (
+        <div
+          className={`rounded-lg px-4 py-3 text-sm ${
+            batchStatus?.status === "failed" || batchAnalyze.error
+              ? "bg-rose-50 text-rose-800"
+              : batchStatus?.status === "running"
+                ? "bg-amber-50 text-amber-900"
+                : "bg-emerald-50 text-emerald-900"
+          }`}
+        >
+          {batchAnalyze.error && (
+            <p>{(batchAnalyze.error as Error).message}</p>
+          )}
+          {batchStatus && batchStatus.status !== "idle" && (
+            <div>
+              <p>
+                AI batch: <span className="font-medium">{batchStatus.status}</span>
+                {" · "}
+                analyzed {batchStatus.analyzed}/{batchStatus.total}
+                {batchStatus.skipped_existing > 0 &&
+                  ` · skipped existing ${batchStatus.skipped_existing}`}
+                {batchStatus.errors.length > 0 &&
+                  ` · ${batchStatus.errors.length} error(s)`}
+              </p>
+              {batchStatus.errors.length > 0 && (
+                <ul className="mt-2 list-disc space-y-1 pl-5 text-xs">
+                  {batchStatus.errors.slice(0, 5).map((err) => (
+                    <li key={err}>{err}</li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {run?.status === "running" && (
         <div className="rounded-lg bg-amber-50 px-4 py-3 text-amber-800">

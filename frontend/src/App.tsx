@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { Layout } from "./components/Layout";
+import { ApplyQueuePage } from "./pages/ApplyQueuePage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { HistoryPage } from "./pages/HistoryPage";
 import { JobDetailPage } from "./pages/JobDetailPage";
@@ -23,6 +24,7 @@ export default function App() {
             <Route path="results/:runId" element={<ResultsPage />} />
             <Route path="results/:runId/jobs/:jobId" element={<JobDetailPage />} />
             <Route path="resume" element={<ResumePage />} />
+            <Route path="apply-queue" element={<ApplyQueuePage />} />
             <Route path="settings" element={<SettingsPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
