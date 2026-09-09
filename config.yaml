@@ -309,3 +309,32 @@ cache:
   enabled: true
   dir: ./cache
   ttl_hours: 6
+
+# AI apply agent (human-in-the-loop; never auto-submits applications)
+agent:
+  enabled: true
+  provider: ollama          # ollama | groq | gemini
+  # On CPU, prefer a smaller model (faster): llama3.2:3b or qwen2.5:3b
+  model: llama3.2:3b        # or llama3.1:8b if you have a GPU / patience
+  ollama_base_url: http://127.0.0.1:11434
+  ollama_timeout_seconds: 600
+  require_human_approval: true
+  max_jobs_per_run: 5       # keep small for local Ollama; raise when using Groq/Gemini
+  min_keyword_score: 40
+  # Optional overrides if resume parse misses contact fields
+  applicant:
+    # full_name: Nivedita Jain
+    # email: you@example.com
+    # phone: ""
+    # linkedin: ""
+    # location: Bangalore, India
+  browser_assist:
+    enabled: true
+    keep_open_minutes: 45
+    slow_mo_ms: 50
+  schedule:
+    enabled: false          # set true for daily search + draft shortlist
+    daily_at: "09:00"
+    timezone: Asia/Kolkata
+    analyze_after_search: true
+    refresh: false
