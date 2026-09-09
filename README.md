@@ -77,13 +77,46 @@ python -m api.services.core.main --validate-jsearch   # dry-run JSearch config
 - **New Search** — keywords, sources, run search
 - **Results** — ranked jobs for a run
 - **Job detail** — score breakdown, matched/missing skills, apply link
+- **Apply Queue** — AI drafts to approve / skip / open apply
 - **Resume** — upload PDF/txt, view detected skills
 - **History** — past search runs
-- **Settings** — scoring weights
+- **Settings** — scoring weights + agent status
 
 ## API docs
 
 With API running: http://localhost:8000/docs
+
+## AI apply agent
+
+Human-in-the-loop: fit analysis, drafts, batch shortlist, clipboard pack, optional browser prefills. Nothing is auto-submitted.
+
+1. Install [Ollama](https://ollama.com) and pull a model:
+   ```bash
+   ollama pull llama3.1:8b
+   ```
+2. Ensure `agent` is enabled in `config.yaml` (`provider: ollama`).
+3. From **Results** → **Analyze top N with AI** (or open a job → **Analyze with AI**).
+4. In **Apply Queue**: review → **Copy apply pack** / **Open apply + copy** → paste on the official site → **Mark applied**.
+5. Optional browser assist (Greenhouse / Lever / Ashby heuristics):
+   ```bash
+   pip install playwright
+   playwright install chromium
+   ```
+   Then use **Browser fill (you submit)** — a Chromium window opens, fields are prefilled, **you** click Submit.
+6. Optional daily shortlist: set `agent.schedule.enabled: true` and `daily_at`, or use Settings → **Run shortlist now**.
+
+Cloud alternatives (set in `config.yaml` + `.env`):
+
+```yaml
+agent:
+  provider: groq   # or gemini
+  model: llama-3.1-8b-instant
+```
+
+```env
+GROQ_API_KEY=...
+# or GEMINI_API_KEY=...
+```
 
 ## Company career boards
 
