@@ -1,13 +1,19 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useParams } from "react-router-dom";
+import { useState } from "react";
 import { api, type ApplicationDraft } from "../api/client";
 import { ScoreBadge } from "../components/ScoreBadge";
+import {
+  NotAppliedModal,
+  type NotAppliedReason,
+} from "../components/NotAppliedModal";
 
 export function JobDetailPage() {
   const { runId, jobId } = useParams<{ runId: string; jobId: string }>();
   const rid = Number(runId);
   const jid = Number(jobId);
   const qc = useQueryClient();
+  const [showNotApplied, setShowNotApplied] = useState(false);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["job", runId, jobId],
@@ -36,14 +42,26 @@ export function JobDetailPage() {
   });
 
   const updateQueue = useMutation({
-    mutationFn: ({ status }: { status: string }) => {
+    mutationFn: ({
+      status,
+      userNotes,
+      notAppliedReason,
+    }: {
+      status: string;
+      userNotes?: string;
+      notAppliedReason?: string;
+    }) => {
       const queueId = (analyze.data ?? draft)?.queue_id;
       if (!queueId) throw new Error("No queue item");
-      return api.updateQueueItem(queueId, status);
+      return api.updateQueueItem(queueId, status, {
+        userNotes,
+        notAppliedReason,
+      });
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["draft", runId, jobId] });
       qc.invalidateQueries({ queryKey: ["apply-queue"] });
+      setShowNotApplied(false);
     },
   });
 
@@ -183,8 +201,26 @@ export function JobDetailPage() {
               : () => browserAssist.mutate()
           }
           browserAssistPending={browserAssist.isPending}
+          onCouldNotApply={() => setShowNotApplied(true)}
         />
       )}
+
+      <NotAppliedModal
+        open={showNotApplied}
+        title={shown ? `${shown.title ?? data.title} · ${shown.company ?? data.company}` : null}
+        pending={updateQueue.isPending}
+        error={
+          updateQueue.error instanceof Error ? updateQueue.error.message : null
+        }
+        onClose={() => setShowNotApplied(false)}
+        onConfirm={(reason: NotAppliedReason, notes: string) => {
+          updateQueue.mutate({
+            status: "not_applied",
+            notAppliedReason: reason,
+            userNotes: notes || undefined,
+          });
+        }}
+      />
 
       <section className="rounded-xl border border-slate-200 bg-white p-6">
         <h3 className="mb-3 font-semibold">Description</h3>
@@ -203,6 +239,7 @@ function AiDraftPanel({
   openApplyPending,
   onBrowserAssist,
   browserAssistPending,
+  onCouldNotApply,
 }: {
   draft: ApplicationDraft;
   onQueueUpdate: (status: string) => void;
@@ -210,6 +247,7 @@ function AiDraftPanel({
   openApplyPending?: boolean;
   onBrowserAssist?: () => void;
   browserAssistPending?: boolean;
+  onCouldNotApply?: () => void;
 }) {
   const decisionColor =
     draft.decision === "apply"
@@ -285,6 +323,9 @@ function AiDraftPanel({
         <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 pt-4">
           <span className="text-xs text-slate-500">
             Queue: {draft.queue_status ?? "pending_review"}
+            {draft.queue_status === "not_applied" && draft.not_applied_reason
+              ? ` · ${draft.not_applied_reason}`
+              : ""}
           </span>
           <button
             type="button"
@@ -325,6 +366,15 @@ function AiDraftPanel({
           >
             Mark applied
           </button>
+          {onCouldNotApply && (
+            <button
+              type="button"
+              className="rounded-lg border border-rose-200 px-3 py-1.5 text-xs text-rose-700 hover:bg-rose-50"
+              onClick={onCouldNotApply}
+            >
+              Couldn’t apply
+            </button>
+          )}
         </div>
       )}
 

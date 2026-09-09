@@ -118,6 +118,7 @@ export interface ApplicationDraft {
   queue_status: string | null;
   queue_id: number | null;
   user_notes: string | null;
+  not_applied_reason?: string | null;
   title?: string | null;
   company?: string | null;
   location?: string | null;
@@ -257,11 +258,19 @@ export const api = {
     const q = status ? `?status=${encodeURIComponent(status)}` : "";
     return request<ApplicationDraft[]>(`/agent/queue${q}`);
   },
-  updateQueueItem: (queueId: number, status: string, userNotes?: string) =>
+  updateQueueItem: (
+    queueId: number,
+    status: string,
+    opts?: { userNotes?: string; notAppliedReason?: string }
+  ) =>
     request<ApplicationDraft>(`/agent/queue/${queueId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status, user_notes: userNotes ?? null }),
+      body: JSON.stringify({
+        status,
+        user_notes: opts?.userNotes ?? null,
+        not_applied_reason: opts?.notAppliedReason ?? null,
+      }),
     }),
   openApply: (queueId: number) =>
     request<ApplicationDraft>(`/agent/queue/${queueId}/open-apply`, {

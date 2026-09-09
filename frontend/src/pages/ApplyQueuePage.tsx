@@ -2,6 +2,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { useState } from "react";
 import { api, type ApplicationDraft } from "../api/client";
+import {
+  NotAppliedModal,
+  type NotAppliedReason,
+} from "../components/NotAppliedModal";
 
 const STATUSES = [
   { value: "", label: "All" },
@@ -10,6 +14,7 @@ const STATUSES = [
   { value: "skipped", label: "Skipped" },
   { value: "opened", label: "Opened" },
   { value: "applied", label: "Applied" },
+  { value: "not_applied", label: "Not applied" },
 ];
 
 export function ApplyQueuePage() {
@@ -17,6 +22,9 @@ export function ApplyQueuePage() {
   const [status, setStatus] = useState("");
   const [expanded, setExpanded] = useState<number | null>(null);
   const [copiedId, setCopiedId] = useState<number | null>(null);
+  const [notAppliedFor, setNotAppliedFor] = useState<ApplicationDraft | null>(
+    null
+  );
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["apply-queue", status],
@@ -24,9 +32,25 @@ export function ApplyQueuePage() {
   });
 
   const update = useMutation({
-    mutationFn: ({ id, next }: { id: number; next: string }) =>
-      api.updateQueueItem(id, next),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["apply-queue"] }),
+    mutationFn: ({
+      id,
+      next,
+      userNotes,
+      notAppliedReason,
+    }: {
+      id: number;
+      next: string;
+      userNotes?: string;
+      notAppliedReason?: string;
+    }) =>
+      api.updateQueueItem(id, next, {
+        userNotes,
+        notAppliedReason,
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["apply-queue"] });
+      setNotAppliedFor(null);
+    },
   });
 
   const openApply = useMutation({
@@ -134,7 +158,12 @@ export function ApplyQueuePage() {
               <div className="text-right text-sm">
                 <div className="font-medium">Fit {item.fit_score.toFixed(0)}</div>
                 <div className="capitalize text-slate-500">{item.decision}</div>
-                <div className="text-xs text-slate-400">{item.queue_status}</div>
+                <div className="text-xs text-slate-400">
+                  {item.queue_status}
+                  {item.queue_status === "not_applied" && item.not_applied_reason
+                    ? ` · ${item.not_applied_reason}`
+                    : ""}
+                </div>
               </div>
             </div>
 
@@ -142,6 +171,9 @@ export function ApplyQueuePage() {
               <p className="mt-2 text-sm text-slate-600">
                 {item.reasons.slice(0, 2).join(" · ")}
               </p>
+            )}
+            {item.queue_status === "not_applied" && item.user_notes && (
+              <p className="mt-1 text-xs text-slate-500">Note: {item.user_notes}</p>
             )}
 
             <div className="mt-4 flex flex-wrap gap-2">
@@ -204,7 +236,9 @@ export function ApplyQueuePage() {
                     onClick={() => browserAssist.mutate(item.queue_id!)}
                     title="Opens a local Chromium window, prefills fields, never clicks Submit"
                   >
-                    {browserAssist.isPending ? "Launching browser…" : "Browser fill (you submit)"}
+                    {browserAssist.isPending
+                      ? "Launching browser…"
+                      : "Browser fill (you submit)"}
                   </button>
                   <button
                     type="button"
@@ -214,6 +248,13 @@ export function ApplyQueuePage() {
                     }
                   >
                     Mark applied
+                  </button>
+                  <button
+                    type="button"
+                    className="rounded-lg border border-rose-200 px-3 py-1.5 text-xs text-rose-700 hover:bg-rose-50"
+                    onClick={() => setNotAppliedFor(item)}
+                  >
+                    Couldn’t apply
                   </button>
                 </>
               )}
@@ -229,6 +270,29 @@ export function ApplyQueuePage() {
           </article>
         ))}
       </div>
+
+      <NotAppliedModal
+        open={!!notAppliedFor}
+        title={
+          notAppliedFor
+            ? `${notAppliedFor.title ?? ""} · ${notAppliedFor.company ?? ""}`
+            : null
+        }
+        pending={update.isPending}
+        error={
+          update.error instanceof Error ? update.error.message : null
+        }
+        onClose={() => setNotAppliedFor(null)}
+        onConfirm={(reason: NotAppliedReason, notes: string) => {
+          if (!notAppliedFor?.queue_id) return;
+          update.mutate({
+            id: notAppliedFor.queue_id,
+            next: "not_applied",
+            notAppliedReason: reason,
+            userNotes: notes || undefined,
+          });
+        }}
+      />
     </div>
   );
 }
