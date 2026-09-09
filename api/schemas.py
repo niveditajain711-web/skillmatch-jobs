@@ -145,3 +145,92 @@ class SearchSettingsUpdate(BaseModel):
     clear_years_of_experience: bool = False
     clear_experience_min: bool = False
     clear_experience_max: bool = False
+
+
+class AnalyzeJobRequest(BaseModel):
+    force: bool = False
+
+
+class BatchAnalyzeRequest(BaseModel):
+    max_jobs: int | None = None
+    min_score: float | None = None
+    force: bool = False
+
+
+class BatchAnalyzeStatusResponse(BaseModel):
+    run_id: int
+    status: str
+    total: int = 0
+    analyzed: int = 0
+    skipped_existing: int = 0
+    errors: list[str] = Field(default_factory=list)
+    job_ids: list[int] = Field(default_factory=list)
+    force: bool = False
+    min_score: float | None = None
+    max_jobs: int | None = None
+
+
+class ApplicationDraftResponse(BaseModel):
+    id: int
+    search_run_id: int
+    job_id: int
+    fit_score: float
+    decision: str
+    reasons: list[str] = Field(default_factory=list)
+    gaps: list[str] = Field(default_factory=list)
+    red_flags: list[str] = Field(default_factory=list)
+    tailored_bullets: list[str] = Field(default_factory=list)
+    cover_letter: str = ""
+    form_answers: dict[str, Any] = Field(default_factory=dict)
+    provider: str = ""
+    model: str = ""
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+    queue_status: str | None = None
+    queue_id: int | None = None
+    user_notes: str | None = None
+    # enriched for queue list
+    title: str | None = None
+    company: str | None = None
+    location: str | None = None
+    url: str | None = None
+    source: str | None = None
+    clipboard_pack: str | None = None
+
+
+class QueueUpdateRequest(BaseModel):
+    status: str
+    user_notes: str | None = None
+
+
+class AgentStatusResponse(BaseModel):
+    enabled: bool
+    provider: str
+    model: str
+    require_human_approval: bool = True
+    max_jobs_per_run: int = 15
+    min_keyword_score: float = 40
+    browser_assist_enabled: bool = True
+    schedule_enabled: bool = False
+    schedule_daily_at: str | None = None
+
+
+class BrowserAssistStatusResponse(BaseModel):
+    queue_id: int
+    status: str
+    ats: str = "generic"
+    url: str | None = None
+    filled: list[str] = Field(default_factory=list)
+    skipped: list[str] = Field(default_factory=list)
+    message: str = ""
+    error: str | None = None
+
+
+class ScheduleStatusResponse(BaseModel):
+    enabled: bool = False
+    status: str = "idle"
+    last_run_at: str | None = None
+    last_search_run_id: int | None = None
+    last_error: str | None = None
+    next_run_at: str | None = None
+    triggered_by: str | None = None

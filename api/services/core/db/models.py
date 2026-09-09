@@ -101,3 +101,58 @@ class JobScore(Base):
 
     search_run: Mapped[SearchRun] = relationship(back_populates="scores")
     job: Mapped[JobRecord] = relationship(back_populates="scores")
+
+
+class ApplicationDraft(Base):
+    """LLM-generated fit analysis and application materials for a job."""
+
+    __tablename__ = "application_drafts"
+    __table_args__ = (
+        UniqueConstraint("search_run_id", "job_id", name="uq_drafts_run_job"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    search_run_id: Mapped[int] = mapped_column(ForeignKey("search_runs.id"), index=True)
+    job_id: Mapped[int] = mapped_column(ForeignKey("jobs.id"), index=True)
+    fit_score: Mapped[float] = mapped_column(Float, default=0.0)
+    decision: Mapped[str] = mapped_column(String(16), default="maybe")
+    reasons: Mapped[list | None] = mapped_column(JSONB, nullable=True)
+    gaps: Mapped[list | None] = mapped_column(JSONB, nullable=True)
+    red_flags: Mapped[list | None] = mapped_column(JSONB, nullable=True)
+    tailored_bullets: Mapped[list | None] = mapped_column(JSONB, nullable=True)
+    cover_letter: Mapped[str] = mapped_column(Text, default="")
+    form_answers: Mapped[dict] = mapped_column(JSONB, default=dict)
+    provider: Mapped[str] = mapped_column(String(64), default="")
+    model: Mapped[str] = mapped_column(String(128), default="")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    queue_item: Mapped[ApplyQueueItem | None] = relationship(
+        back_populates="draft", uselist=False
+    )
+
+
+class ApplyQueueItem(Base):
+    """Human review / apply status for a draft."""
+
+    __tablename__ = "apply_queue"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    draft_id: Mapped[int] = mapped_column(
+        ForeignKey("application_drafts.id"), unique=True, index=True
+    )
+    job_id: Mapped[int] = mapped_column(ForeignKey("jobs.id"), index=True)
+    status: Mapped[str] = mapped_column(String(32), default="pending_review", index=True)
+    user_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    draft: Mapped[ApplicationDraft] = relationship(back_populates="queue_item")

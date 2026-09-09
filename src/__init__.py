@@ -1,1 +1,0 @@
-"""Job search and resume matching CLI."""
