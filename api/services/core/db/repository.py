@@ -314,6 +314,7 @@ def update_queue_status(
     *,
     status: str,
     user_notes: str | None = None,
+    not_applied_reason: str | None = None,
 ) -> ApplyQueueItem | None:
     item = get_queue_item(session, queue_id)
     if not item:
@@ -321,6 +322,10 @@ def update_queue_status(
     item.status = status
     if user_notes is not None:
         item.user_notes = user_notes
+    if status == "not_applied":
+        item.not_applied_reason = not_applied_reason
+    else:
+        item.not_applied_reason = None
     item.updated_at = datetime.now(timezone.utc)
     session.flush()
     return item

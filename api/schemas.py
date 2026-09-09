@@ -189,6 +189,7 @@ class ApplicationDraftResponse(BaseModel):
     queue_status: str | None = None
     queue_id: int | None = None
     user_notes: str | None = None
+    not_applied_reason: str | None = None
     # enriched for queue list
     title: str | None = None
     company: str | None = None
@@ -201,6 +202,7 @@ class ApplicationDraftResponse(BaseModel):
 class QueueUpdateRequest(BaseModel):
     status: str
     user_notes: str | None = None
+    not_applied_reason: str | None = None
 
 
 class AgentStatusResponse(BaseModel):

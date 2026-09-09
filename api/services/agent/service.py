@@ -128,6 +128,7 @@ def draft_to_dict(draft: ApplicationDraft, queue: ApplyQueueItem | None = None) 
         "queue_status": queue.status if queue else None,
         "queue_id": queue.id if queue else None,
         "user_notes": queue.user_notes if queue else None,
+        "not_applied_reason": queue.not_applied_reason if queue else None,
     }
 
 

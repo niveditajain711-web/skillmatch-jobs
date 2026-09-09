@@ -37,7 +37,18 @@ ALLOWED_QUEUE_STATUSES = {
     "skipped",
     "opened",
     "applied",
+    "not_applied",
     "failed",
+}
+
+NOT_APPLIED_REASONS = {
+    "no_link",
+    "job_closed",
+    "not_eligible",
+    "login_wall",
+    "form_blocked",
+    "duplicate",
+    "other",
 }
 
 
@@ -191,8 +202,27 @@ def update_queue(
             400,
             f"Invalid status. Allowed: {', '.join(sorted(ALLOWED_QUEUE_STATUSES))}",
         )
+
+    reason = (body.not_applied_reason or "").strip().lower() or None
+    notes = body.user_notes
+    if status == "not_applied":
+        if not reason or reason not in NOT_APPLIED_REASONS:
+            raise HTTPException(
+                400,
+                "not_applied requires not_applied_reason. Allowed: "
+                + ", ".join(sorted(NOT_APPLIED_REASONS)),
+            )
+        if reason == "other" and not (notes and str(notes).strip()):
+            raise HTTPException(400, "Reason 'other' requires user_notes.")
+    else:
+        reason = None
+
     item = repo.update_queue_status(
-        db, queue_id, status=status, user_notes=body.user_notes
+        db,
+        queue_id,
+        status=status,
+        user_notes=notes,
+        not_applied_reason=reason,
     )
     if not item:
         raise HTTPException(404, "Queue item not found")
